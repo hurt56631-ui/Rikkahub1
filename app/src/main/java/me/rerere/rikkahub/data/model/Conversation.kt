@@ -32,13 +32,16 @@ data class Conversation(
     // 所属文件夹（助手内分组），null 表示未归入任何文件夹
     val folderId: Uuid? = null,
     @Transient
-    val newConversation: Boolean = false
+    val newConversation: Boolean = false,
+    /** In-memory only: when true this conversation is never persisted to the local database. */
+    @Transient
+    val isTemporary: Boolean = false,
 ) {
     val files: List<Uri>
         get() = messageNodes
             .flatMap { node -> node.messages.flatMap { it.parts } }
-            .collectAllParts()
-            .mapNotNull { it.fileUri() }
+            .localFileUrls()
+            .map { it.toUri() }
 
     /**
      *  当前选中的 message
@@ -95,12 +98,14 @@ data class Conversation(
             id: Uuid,
             assistantId: Uuid = DEFAULT_ASSISTANT_ID,
             messages: List<MessageNode> = emptyList(),
-            newConversation: Boolean = false
+            newConversation: Boolean = false,
+            isTemporary: Boolean = false,
         ) = Conversation(
             id = id,
             assistantId = assistantId,
             messageNodes = messages,
             newConversation = newConversation,
+            isTemporary = isTemporary,
         )
     }
 }
@@ -136,19 +141,21 @@ fun UIMessage.toMessageNode(): MessageNode {
     )
 }
 
-/**
- * 递归展开所有 parts，包括工具调用结果中的嵌套 parts。
- */
-private fun List<UIMessagePart>.collectAllParts(): List<UIMessagePart> =
-    this + filterIsInstance<UIMessagePart.Tool>().flatMap { it.output.collectAllParts() }
+/** 本地附件引用，包含工具结果中的嵌套附件。 */
+internal fun List<UIMessagePart>.localFileUrls(): Set<String> = buildSet {
+    this@localFileUrls.forEach { part ->
+        val url = when (part) {
+            is UIMessagePart.Image -> part.url
+            is UIMessagePart.Document -> part.url
+            is UIMessagePart.Video -> part.url
+            is UIMessagePart.Audio -> part.url
+            is UIMessagePart.Tool -> {
+                addAll(part.output.localFileUrls())
+                null
+            }
 
-/**
- * 提取 part 中引用的本地文件 URI，新增文件类型时只需在此处添加。
- */
-private fun UIMessagePart.fileUri(): Uri? = when (this) {
-    is UIMessagePart.Image -> url.takeIf { it.startsWith("file://") }?.toUri()
-    is UIMessagePart.Document -> url.takeIf { it.startsWith("file://") }?.toUri()
-    is UIMessagePart.Video -> url.takeIf { it.startsWith("file://") }?.toUri()
-    is UIMessagePart.Audio -> url.takeIf { it.startsWith("file://") }?.toUri()
-    else -> null
+            else -> null
+        }
+        if (url?.startsWith("file://") == true) add(url)
+    }
 }
