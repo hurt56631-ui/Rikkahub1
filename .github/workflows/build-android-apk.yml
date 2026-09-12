@@ -31,6 +31,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # This uploaded feat/context-limit branch contains old main-source files
+          # that no longer exist in the current architecture. GitHub overlays do
+          # not delete them, so remove them explicitly before compilation.
+          rm -f \
+            app/src/main/java/me/rerere/rikkahub/ui/di/DataSourceModule.kt \
+            app/src/main/java/me/rerere/rikkahub/ui/activity/McpOAuthCallbackActivity.kt \
+            app/src/main/java/me/rerere/rikkahub/data/ai/GenerationHandler.kt \
+            app/src/main/java/me/rerere/rikkahub/data/ai/mcp/McpOAuthCallback.kt \
+            app/src/main/java/me/rerere/rikkahub/data/ai/mcp/McpOAuthClient.kt \
+            app/src/main/java/me/rerere/rikkahub/data/ai/mcp/transport/StreamableHttpClientTransport.kt \
+            app/src/main/java/me/rerere/rikkahub/data/ai/mcp/transport/SseClientTransport.kt \
+            highlight/src/main/res/raw/prism.js \
+            highlight/src/main/java/me/rerere/highlight/HighlightText.kt \
+            ai/src/main/java/me/rerere/ai/ProviderManager.kt \
+            ai/src/main/java/me/rerere/ai/ProviderSetting.kt \
+            ai/src/main/java/me/rerere/ai/provider/providers/GoogleProvider.kt \
+            ai/src/main/java/me/rerere/ai/provider/providers/ClaudeProvider.kt \
+            ai/src/main/java/me/rerere/ai/provider/providers/OpenAIProvider.kt \
+            ai/src/main/java/me/rerere/ai/provider/providers/vertex/ServiceAccountTokenProvider.kt
           rm -f \
             ai/src/main/java/me/rerere/ai/ProviderManager.kt \
             ai/src/main/java/me/rerere/ai/ProviderSetting.kt
@@ -66,6 +85,14 @@ jobs:
             cat /tmp/legacy-messagechunk.txt
             exit 1
           fi
+
+      - name: Verify current app architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/src/main/java/me/rerere/rikkahub/data/ai/GenerationLoop.kt || { echo 'ERROR: GenerationLoop.kt missing; source overlay is incomplete.'; exit 1; }
+          test -s app/src/main/java/me/rerere/rikkahub/service/MessageQueue.kt || { echo 'ERROR: MessageQueue.kt missing; source overlay is incomplete.'; exit 1; }
+          grep -q 'messageQueue' app/src/main/java/me/rerere/rikkahub/service/ConversationSession.kt || { echo 'ERROR: ConversationSession.kt is still the old version.'; exit 1; }
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
