@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.setting.components
 
+import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.dokar.sonner.ToastType
 import me.rerere.ai.provider.ClaudePromptCacheTtl
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.provider.providers.geminiweb.GeminiWebModels
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.DEFAULT_PROVIDERS
 import me.rerere.hugeicons.HugeIcons
@@ -74,6 +76,7 @@ fun ProviderConfigure(
         when (provider) {
             is ProviderSetting.OpenAI -> ProviderConfigureOpenAI(provider, onEdit)
             is ProviderSetting.Google -> ProviderConfigureGoogle(provider, onEdit)
+            is ProviderSetting.GeminiWeb -> ProviderConfigureGeminiWeb(provider, onEdit)
             is ProviderSetting.Claude -> ProviderConfigureClaude(provider, onEdit)
         }
     }
@@ -85,16 +88,19 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
     val apiKey = when (this) {
         is ProviderSetting.OpenAI -> this.apiKey
         is ProviderSetting.Google -> this.apiKey
+        is ProviderSetting.GeminiWeb -> ""
         is ProviderSetting.Claude -> this.apiKey
     }
     val sourceBaseUrl = when (this) {
         is ProviderSetting.OpenAI -> this.baseUrl
         is ProviderSetting.Google -> this.baseUrl
+        is ProviderSetting.GeminiWeb -> ""
         is ProviderSetting.Claude -> this.baseUrl
     }
     val targetDefaultBaseUrl = when (type) {
         ProviderSetting.OpenAI::class -> ProviderSetting.OpenAI().baseUrl
         ProviderSetting.Google::class -> ProviderSetting.Google().baseUrl
+        ProviderSetting.GeminiWeb::class -> ""
         ProviderSetting.Claude::class -> ProviderSetting.Claude().baseUrl
         else -> error("Unsupported provider type: $type")
     }
@@ -113,6 +119,12 @@ fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSettin
             description = this.description, shortDescription = this.shortDescription,
             apiKey = apiKey, baseUrl = convertedBaseUrl
         )
+        ProviderSetting.GeminiWeb::class -> ProviderSetting.GeminiWeb(
+            id = this.id, enabled = this.enabled, name = this.name,
+            models = GeminiWebModels.defaultModels(),
+            balanceOption = this.balanceOption, builtIn = this.builtIn,
+            description = this.description, shortDescription = this.shortDescription,
+        )
         ProviderSetting.Claude::class -> ProviderSetting.Claude(
             id = this.id, enabled = this.enabled, name = this.name, models = this.models,
             balanceOption = this.balanceOption, builtIn = this.builtIn,
@@ -129,12 +141,14 @@ internal fun ProviderSetting.defaultBaseUrlForReset(): String {
         when (this) {
             is ProviderSetting.OpenAI -> if (defaultProvider is ProviderSetting.OpenAI) return defaultProvider.baseUrl
             is ProviderSetting.Google -> if (defaultProvider is ProviderSetting.Google) return defaultProvider.baseUrl
+            is ProviderSetting.GeminiWeb -> return ""
             is ProviderSetting.Claude -> if (defaultProvider is ProviderSetting.Claude) return defaultProvider.baseUrl
         }
     }
     return when (this) {
         is ProviderSetting.OpenAI -> ProviderSetting.OpenAI().baseUrl
         is ProviderSetting.Google -> ProviderSetting.Google().baseUrl
+        is ProviderSetting.GeminiWeb -> ""
         is ProviderSetting.Claude -> ProviderSetting.Claude().baseUrl
     }
 }
@@ -144,6 +158,7 @@ internal fun ProviderSetting.resetBaseUrlToDefault(): ProviderSetting {
     return when (this) {
         is ProviderSetting.OpenAI -> this.copy(baseUrl = defaultBaseUrl)
         is ProviderSetting.Google -> this.copy(baseUrl = defaultBaseUrl)
+        is ProviderSetting.GeminiWeb -> this
         is ProviderSetting.Claude -> this.copy(baseUrl = defaultBaseUrl)
     }
 }
@@ -152,6 +167,7 @@ internal fun ProviderSetting.isUsingDefaultBaseUrl(): Boolean {
     val baseUrl = when (this) {
         is ProviderSetting.OpenAI -> this.baseUrl
         is ProviderSetting.Google -> this.baseUrl
+        is ProviderSetting.GeminiWeb -> ""
         is ProviderSetting.Claude -> this.baseUrl
     }
     return baseUrl == defaultBaseUrlForReset()
@@ -209,7 +225,7 @@ private fun ProviderConfigureOpenAI(
 
     OutlinedTextField(
         value = provider.name,
-        onValueChange = { onEdit(provider.copy(name = it.trim())) },
+        onValueChange = { onEdit(provider.copy(name = it)) },
         label = { Text(stringResource(R.string.setting_provider_page_name)) },
         modifier = Modifier.fillMaxWidth(),
     )
@@ -237,15 +253,21 @@ private fun ProviderConfigureOpenAI(
         isError = provider.baseUrl.isNotBlank() && !provider.baseUrl.isValidBaseUrl(),
     )
 
-    if (!provider.useResponseApi) {
-        OutlinedTextField(
-            value = provider.chatCompletionsPath,
-            onValueChange = { onEdit(provider.copy(chatCompletionsPath = it.trim())) },
-            label = { Text(stringResource(R.string.setting_provider_page_api_path)) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !provider.builtIn,
-        )
-    }
+    OutlinedTextField(
+        value = if (provider.useResponseApi) provider.responsesPath else provider.chatCompletionsPath,
+        onValueChange = {
+            onEdit(
+                if (provider.useResponseApi) {
+                    provider.copy(responsesPath = it.trim())
+                } else {
+                    provider.copy(chatCompletionsPath = it.trim())
+                }
+            )
+        },
+        label = { Text(stringResource(R.string.setting_provider_page_api_path)) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !provider.builtIn,
+    )
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -299,7 +321,7 @@ private fun ProviderConfigureClaude(
 
     OutlinedTextField(
         value = provider.name,
-        onValueChange = { onEdit(provider.copy(name = it.trim())) },
+        onValueChange = { onEdit(provider.copy(name = it)) },
         label = { Text(stringResource(R.string.setting_provider_page_name)) },
         modifier = Modifier.fillMaxWidth(),
         maxLines = 3,
@@ -378,6 +400,96 @@ private fun ProviderConfigureClaude(
 }
 
 @Composable
+private fun ProviderConfigureGeminiWeb(
+    provider: ProviderSetting.GeminiWeb,
+    onEdit: (provider: ProviderSetting.GeminiWeb) -> Unit,
+) {
+    var showLogin by remember { mutableStateOf(false) }
+    var sessionVersion by remember { mutableStateOf(0) }
+    val cookies = remember(sessionVersion) {
+        CookieManager.getInstance().getCookie("https://gemini.google.com/app").orEmpty()
+    }
+    val loggedIn = cookies.contains("__Secure-1PSID=") ||
+        cookies.contains("__Secure-3PSID=") || cookies.contains("SID=")
+
+    provider.description()
+
+    OutlinedTextField(
+        value = provider.name,
+        onValueChange = { onEdit(provider.copy(name = it)) },
+        label = { Text(stringResource(R.string.setting_provider_page_name)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(if (loggedIn) "Google 登录状态：已检测到会话" else "Google 登录状态：未登录")
+        OutlinedButton(onClick = { showLogin = true }) {
+            Text(if (loggedIn) "重新登录" else "登录 Google")
+        }
+    }
+
+    OutlinedTextField(
+        value = provider.authUser,
+        onValueChange = { value ->
+            onEdit(provider.copy(authUser = value.filter(Char::isDigit).take(2).ifBlank { "0" }))
+        },
+        label = { Text("Google 账号序号") },
+        supportingText = { Text("默认 0；多账号 Gemini 页面可使用 1、2…") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Google 端临时会话")
+            Text(
+                "开启后使用 Gemini Web 的临时聊天标记，不写入 Gemini 网页历史。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = provider.temporaryChatOnGoogle,
+            onCheckedChange = { onEdit(provider.copy(temporaryChatOnGoogle = it)) },
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.setting_provider_page_enable))
+        Switch(
+            checked = provider.enabled,
+            onCheckedChange = { onEdit(provider.copy(enabled = it)) },
+        )
+    }
+
+    Text(
+        "内置模型：3.8 Flash、3.6 Flash（兼容）、3.5 Flash-Lite、3.1 Pro，并支持聊天图片模式。3.6 Web Hash 曾被 Gemini Nexus 移除，如 Google 停止接受会自动报错，不会回退成其他模型。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    if (showLogin) {
+        GeminiWebLoginDialog(
+            authUser = provider.authUser,
+            onDismiss = { showLogin = false },
+            onSessionChanged = { sessionVersion++ },
+        )
+    }
+}
+
+@Composable
 private fun ProviderConfigureGoogle(
     provider: ProviderSetting.Google,
     onEdit: (provider: ProviderSetting.Google) -> Unit
@@ -411,7 +523,7 @@ private fun ProviderConfigureGoogle(
 
     OutlinedTextField(
         value = provider.name,
-        onValueChange = { onEdit(provider.copy(name = it.trim())) },
+        onValueChange = { onEdit(provider.copy(name = it)) },
         label = { Text(stringResource(R.string.setting_provider_page_name)) },
         modifier = Modifier.fillMaxWidth(),
     )

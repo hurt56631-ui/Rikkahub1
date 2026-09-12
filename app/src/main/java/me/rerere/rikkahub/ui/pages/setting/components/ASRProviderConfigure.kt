@@ -32,6 +32,7 @@ fun ASRProviderConfigure(
         ) {
             OutlinedTextField(
                 value = when (setting) {
+                    is ASRProviderSetting.GoogleSpeech -> "Google / 系统免费语音输入"
                     is ASRProviderSetting.OpenAIRealtime -> "OpenAI Realtime"
                     is ASRProviderSetting.DashScope -> "DashScope"
                     is ASRProviderSetting.Volcengine -> "Volcengine"
@@ -57,12 +58,32 @@ fun ASRProviderConfigure(
         }
 
         when (setting) {
+            is ASRProviderSetting.GoogleSpeech -> GoogleSpeechASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.OpenAIRealtime -> OpenAIRealtimeASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.DashScope -> DashScopeASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.Volcengine -> VolcengineASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.MiMo -> MiMoASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.Step -> StepASRConfiguration(setting, onValueChange)
         }
+    }
+}
+
+@Composable
+private fun GoogleSpeechASRConfiguration(
+    setting: ASRProviderSetting.GoogleSpeech,
+    onValueChange: (ASRProviderSetting) -> Unit
+) {
+    FormItem(
+        label = { Text("识别语言") },
+        description = { Text("免费使用 Android 系统语音识别；安装 Google Speech Services 的设备通常由 Google 提供识别。留空自动跟随系统，也可填 zh-CN、my-MM、en-US。") }
+    ) {
+        OutlinedTextField(
+            value = setting.language,
+            onValueChange = { onValueChange(setting.copy(language = it.trim())) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("留空 = 自动") },
+            singleLine = true,
+        )
     }
 }
 
@@ -241,7 +262,7 @@ private fun DashScopeASRConfiguration(
         OutlinedNumberInput(
             value = setting.vadThreshold,
             onValueChange = { value ->
-                if (value in 0.0f..1.0f) {
+                if (value in -1.0f..1.0f) {
                     onValueChange(setting.copy(vadThreshold = value))
                 }
             },
@@ -257,7 +278,7 @@ private fun DashScopeASRConfiguration(
         OutlinedNumberInput(
             value = setting.silenceDurationMs,
             onValueChange = { value ->
-                if (value in 100..5000) {
+                if (value in 200..6000) {
                     onValueChange(setting.copy(silenceDurationMs = value))
                 }
             },
@@ -292,7 +313,7 @@ private fun VolcengineASRConfiguration(
             value = setting.websocketUrl,
             onValueChange = { onValueChange(setting.copy(websocketUrl = it)) },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("wss://openspeech.bytedance.com/api/v3/sauc/bigmodel") }
+            placeholder = { Text("wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async") }
         )
     }
 
@@ -304,7 +325,7 @@ private fun VolcengineASRConfiguration(
             value = setting.resourceId,
             onValueChange = { onValueChange(setting.copy(resourceId = it)) },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("volc.bigasr.sauc.duration") }
+            placeholder = { Text("volc.seedasr.sauc.duration") }
         )
     }
 
@@ -319,6 +340,20 @@ private fun VolcengineASRConfiguration(
             placeholder = { Text("auto") }
         )
     }
+    FormItem(
+        label = { Text(stringResource(R.string.setting_page_asr_silence_duration)) },
+        description = { Text(stringResource(R.string.setting_page_asr_silence_duration_desc)) },
+    ) {
+        OutlinedNumberInput(
+            value = setting.silenceDurationMs,
+            onValueChange = { value ->
+                if (value in 300..5000) onValueChange(setting.copy(silenceDurationMs = value))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.setting_page_asr_milliseconds),
+        )
+    }
+
 }
 
 @Composable
