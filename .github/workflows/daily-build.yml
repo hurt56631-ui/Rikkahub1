@@ -1,8 +1,10 @@
-name: Legacy Signed Release Build (requires secrets)
+name: Daily Build
 
 on:
-  # Fork/ZIP 项目默认不再定时跑需要签名 secrets 的发布任务，避免每天失败。
-  # 需要旧的 signed release 流程时手动触发即可。
+  # 每天 UTC 09:00、18:00 触发（北京时间 17:00、次日 02:00）
+  schedule:
+    - cron: '0 9,18 * * *'
+  # 也支持手动触发
   workflow_dispatch:
 
 jobs:
@@ -41,6 +43,44 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive # 拉取子模块
+
+      - name: Remove stale files from older overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            ai/src/main/java/me/rerere/ai/ProviderManager.kt \
+            ai/src/main/java/me/rerere/ai/ProviderSetting.kt
+          find ai/src/main/java/me/rerere/ai/provider/providers \
+            -maxdepth 1 -type f -name '*.kt' ! -name 'ProviderMessageUtils.kt' -delete
+          test -s ai/src/main/java/me/rerere/ai/ui/StreamChunk.kt
+          grep -q 'Flow<StreamChunk>' ai/src/main/java/me/rerere/ai/provider/Provider.kt
+          test -s ai/src/main/java/me/rerere/ai/provider/providers/geminiweb/GeminiWebProvider.kt
+          grep -q 'ProviderSetting.GeminiWeb' ai/src/main/java/me/rerere/ai/provider/ProviderManager.kt
+          grep -q 'data class GeminiWeb' ai/src/main/java/me/rerere/ai/provider/ProviderSetting.kt
+          if grep -R -n --include='*.kt' '\bMessageChunk\b' ai/src/main/java/me/rerere/ai >/tmp/legacy-messagechunk.txt; then
+            cat /tmp/legacy-messagechunk.txt
+            exit 1
+          fi
+
+      - name: Restore version catalog and material color utilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -s gradle/libs.versions.toml ]; then
+            mkdir -p gradle
+            curl --fail --location --retry 3 \
+              https://raw.githubusercontent.com/rikkahub/rikkahub/master/gradle/libs.versions.toml \
+              --output gradle/libs.versions.toml
+          fi
+          test -s gradle/libs.versions.toml
+          if [ ! -d material3/material-color-utilities/kotlin ]; then
+            rm -rf material3/material-color-utilities
+            git clone --depth 1 \
+              https://github.com/material-foundation/material-color-utilities.git \
+              material3/material-color-utilities
+          fi
+          test -d material3/material-color-utilities/kotlin
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -85,10 +125,13 @@ jobs:
           # 写入Google Services配置
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
 
-      - name: Gradle Build
+      - name: Compile Kotlin modules first
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew --no-daemon :ai:compileReleaseKotlin :speech:compileReleaseKotlin :app:compileReleaseKotlin
+
+      - name: Gradle Build
+        run: ./gradlew --no-daemon assembleRelease
 
       # 把 APK 直接发布为 Prerelease，用户点链接即可下载单个 apk，无需登录、无需解压
       - name: Publish nightly prerelease
