@@ -16,6 +16,7 @@ import me.rerere.asr.ASRController
 import me.rerere.asr.ASRProviderSetting
 import me.rerere.asr.ASRState
 import me.rerere.asr.providers.DashScopeASRController
+import me.rerere.asr.providers.GoogleSpeechASRController
 import me.rerere.asr.providers.MiMoASRController
 import me.rerere.asr.providers.OpenAIRealtimeASRController
 import me.rerere.asr.providers.StepASRController
@@ -106,6 +107,10 @@ private class CustomAsrStateImpl(
 
     private fun createController(provider: ASRProviderSetting): ASRController? {
         return when (provider) {
+            is ASRProviderSetting.GoogleSpeech -> {
+                GoogleSpeechASRController(context, provider)
+            }
+
             is ASRProviderSetting.OpenAIRealtime -> {
                 if (provider.apiKey.isBlank()) return null
                 OpenAIRealtimeASRController(context, httpClient, provider)

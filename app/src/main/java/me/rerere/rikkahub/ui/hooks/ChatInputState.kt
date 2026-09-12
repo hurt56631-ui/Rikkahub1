@@ -6,13 +6,17 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.provider.providers.geminiweb.GEMINI_WEB_IMAGE_MODE_METADATA
 import kotlin.uuid.Uuid
 
 class ChatInputState {
     val textContent = TextFieldState()
     var messageContent by mutableStateOf(listOf<UIMessagePart>())
     var editingMessage by mutableStateOf<Uuid?>(null)
+    var geminiWebImageMode by mutableStateOf(false)
     private var editingParts: List<UIMessagePart>? = null
     private var editingAttachmentUrls: Set<String> = emptySet()
 
@@ -59,11 +63,15 @@ class ChatInputState {
                 originalParts.forEachIndexed { index, part ->
                     when {
                         index == editedTextIndex -> {
-                            merged.add(UIMessagePart.Text(text))
+                            if (text.isNotBlank()) {
+                                merged.add(UIMessagePart.Text(text))
+                            }
                         }
 
                         part is UIMessagePart.Text -> {
-                            merged.add(part)
+                            if (part.text.isNotBlank()) {
+                                merged.add(part)
+                            }
                         }
 
                         else -> {
@@ -74,17 +82,37 @@ class ChatInputState {
                         }
                     }
                 }
+                if (editedTextIndex < 0 && text.isNotBlank()) {
+                    merged.add(0, UIMessagePart.Text(text))
+                }
                 // Newly added attachments are appended in insertion order.
                 merged.addAll(remainingAttachments)
                 return merged
             }
             return if (text.isBlank()) messageContent else listOf(UIMessagePart.Text(text)) + messageContent
         }
-        return listOf(UIMessagePart.Text(text)) + messageContent
+        return if (text.isBlank()) messageContent else listOf(UIMessagePart.Text(text)) + messageContent
+    }
+
+    fun getContentsForSend(): List<UIMessagePart> {
+        val contents = getContents()
+        if (!geminiWebImageMode) return contents
+
+        val lastTextIndex = contents.indexOfLast { it is UIMessagePart.Text }
+        val metadata = JsonObject(mapOf(GEMINI_WEB_IMAGE_MODE_METADATA to JsonPrimitive(true)))
+        return if (lastTextIndex >= 0) {
+            contents.mapIndexed { index, part ->
+                if (index == lastTextIndex && part is UIMessagePart.Text) {
+                    part.copy(metadata = JsonObject((part.metadata?.toMap().orEmpty()) + metadata.toMap()))
+                } else part
+            }
+        } else {
+            listOf(UIMessagePart.Text("", metadata = metadata)) + contents
+        }
     }
 
     fun isEmpty(): Boolean {
-        return textContent.text.isEmpty()
+        return textContent.text.isBlank() && messageContent.isEmpty()
     }
 
     fun addImages(uris: List<Uri>) {
