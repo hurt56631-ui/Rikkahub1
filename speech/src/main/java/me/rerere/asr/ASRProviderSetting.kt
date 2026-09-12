@@ -9,10 +9,39 @@ sealed class ASRProviderSetting {
     abstract val id: Uuid
     abstract val name: String
 
+    // Describes our adapter, not every API offered by this vendor.
+    val supportsServerVadVoiceMode: Boolean
+        get() = this is OpenAIRealtime || this is DashScope || this is Volcengine
+
     abstract fun copyProvider(
         id: Uuid = this.id,
         name: String = this.name,
     ): ASRProviderSetting
+
+
+    /**
+     * Android 系统 SpeechRecognizer。多数带 Google 语音服务的设备会走 Google
+     * Speech Services，不需要 API Key。这里只用于按住/点击麦克风的语音输入，
+     * 不支持 Voice Mode 所需的服务端 VAD / endpointing。
+     */
+    @Serializable
+    @SerialName("google_speech")
+    data class GoogleSpeech(
+        override val id: Uuid = Uuid.random(),
+        override val name: String = "Google 免费语音输入",
+        // 留空 = 跟随系统/识别服务自动判断；也可填 zh-CN、my-MM、en-US 等。
+        val language: String = "",
+    ) : ASRProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): ASRProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
 
     @Serializable
     @SerialName("openai_realtime")
@@ -46,12 +75,12 @@ sealed class ASRProviderSetting {
         override val id: Uuid = Uuid.random(),
         override val name: String = "DashScope ASR",
         val apiKey: String = "",
-        val websocketUrl: String = "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
+        val websocketUrl: String = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
         val model: String = "qwen3-asr-flash-realtime",
         val language: String = "",
         val sampleRate: Int = 16000,
-        val vadThreshold: Float = 0.2f,
-        val silenceDurationMs: Int = 800,
+        val vadThreshold: Float = 0.0f,
+        val silenceDurationMs: Int = 400,
     ) : ASRProviderSetting() {
         override fun copyProvider(
             id: Uuid,
@@ -70,9 +99,10 @@ sealed class ASRProviderSetting {
         override val id: Uuid = Uuid.random(),
         override val name: String = "Volcengine ASR",
         val apiKey: String = "",
-        val websocketUrl: String = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
+        val websocketUrl: String = VOLCENGINE_ASR_WEBSOCKET_URL,
         val resourceId: String = "volc.seedasr.sauc.duration",
         val language: String = "",
+        val silenceDurationMs: Int = 800,
     ) : ASRProviderSetting() {
         override fun copyProvider(
             id: Uuid,
@@ -172,6 +202,7 @@ sealed class ASRProviderSetting {
     companion object {
         val Types by lazy {
             listOf(
+                GoogleSpeech::class,
                 OpenAIRealtime::class,
                 DashScope::class,
                 Volcengine::class,
@@ -181,3 +212,5 @@ sealed class ASRProviderSetting {
         }
     }
 }
+
+const val VOLCENGINE_ASR_WEBSOCKET_URL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
