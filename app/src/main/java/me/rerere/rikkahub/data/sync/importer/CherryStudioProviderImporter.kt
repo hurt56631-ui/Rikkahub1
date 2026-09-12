@@ -125,6 +125,7 @@ object CherryStudioProviderImporter {
         return when (provider) {
             is ProviderSetting.OpenAI -> "openai|${provider.baseUrl}|${provider.apiKey}"
             is ProviderSetting.Google -> "google|${provider.baseUrl}|${provider.apiKey}"
+            is ProviderSetting.GeminiWeb -> "gemini_web|${provider.authUser}"
             is ProviderSetting.Claude -> "claude|${provider.baseUrl}|${provider.apiKey}"
         }
     }
