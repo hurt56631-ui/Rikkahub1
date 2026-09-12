@@ -11,7 +11,6 @@ data class GeminiWebHeaderConfig(
     val mode: Int,
     val legacyMode: Int? = null,
     val capabilities: List<Int> = listOf(4, 5, 6, 8),
-    val fastThinkingLevel: String = "low",
 )
 
 object GeminiWebModels {
@@ -27,32 +26,27 @@ object GeminiWebModels {
             legacyMode = 2,
             mode = 1,
             capabilities = listOf(4, 5, 6, 8, 4, 5, 6, 8),
-            fastThinkingLevel = "minimal",
         ),
-        // Gemini Nexus removed this hash from its Web catalog in v5.2.0, but it is kept
-        // here as an explicit compatibility option requested by the user.
+        // Compatibility option. Gemini Nexus removed this old Web hash from its
+        // current catalog; if Google rejects it, the request fails instead of
+        // silently falling back to another model.
         GEMINI_36_FLASH to GeminiWebHeaderConfig(
             hash = "fbb127bbb056c959",
             mode = 1,
-            capabilities = listOf(4, 5, 6, 8),
-            fastThinkingLevel = "minimal",
         ),
         GEMINI_35_FLASH_LITE to GeminiWebHeaderConfig(
             hash = "cf41b0e0dd7d53e5",
             mode = 6,
-            fastThinkingLevel = "minimal",
         ),
         GEMINI_31_PRO to GeminiWebHeaderConfig(
             hash = "e6fa609c3fa255c0",
             mode = 3,
-            fastThinkingLevel = "low",
         ),
         IMAGE_MODEL to GeminiWebHeaderConfig(
             hash = "56fdd199312815e2",
             legacyMode = 2,
             mode = 1,
             capabilities = listOf(4, 5, 6, 8, 4, 5, 6, 8),
-            fastThinkingLevel = "minimal",
         ),
     )
 
@@ -64,19 +58,19 @@ object GeminiWebModels {
         chatModel(GEMINI_35_FLASH_LITE, "Gemini 3.5 Flash-Lite", "aa0212da-9266-489e-b30c-1f89c2d036c9"),
         chatModel(GEMINI_31_PRO, "Gemini 3.1 Pro", "185cccf6-e007-4976-a304-b0c1a9cf6145"),
         Model(
+            id = Uuid.parse("a23a0433-2283-40db-ba4e-4dd93cfc1063"),
             modelId = IMAGE_MODEL,
             displayName = "Gemini Web 图片生成",
-            id = Uuid.parse("a23a0433-2283-40db-ba4e-4dd93cfc1063"),
             type = ModelType.IMAGE,
-            inputModalities = listOf(Modality.TEXT),
+            inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
             outputModalities = listOf(Modality.IMAGE),
         ),
     )
 
     private fun chatModel(modelId: String, displayName: String, id: String) = Model(
+        id = Uuid.parse(id),
         modelId = modelId,
         displayName = displayName,
-        id = Uuid.parse(id),
         type = ModelType.CHAT,
         inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
         outputModalities = listOf(Modality.TEXT, Modality.IMAGE),
