@@ -1,10 +1,8 @@
-name: Daily Build
+name: Legacy Signed Release Build (requires secrets)
 
 on:
-  # 每天 UTC 18:00 触发（北京时间次日 02:00），可按需修改
-  schedule:
-    - cron: '0 18 * * *'
-  # 也支持手动触发
+  # Fork/ZIP 项目默认不再定时跑需要签名 secrets 的发布任务，避免每天失败。
+  # 需要旧的 signed release 流程时手动触发即可。
   workflow_dispatch:
 
 jobs:
