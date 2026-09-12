@@ -719,6 +719,17 @@ fun Settings.getSelectedASRProvider(): ASRProviderSetting? {
     } ?: asrProviders.firstOrNull()
 }
 
+/**
+ * Voice Mode needs a streaming ASR implementation with server-side VAD/endpointing.
+ * The normal chat-input microphone may use Google/System SpeechRecognizer, so do not
+ * let that selection disable Voice Mode when another compatible ASR is configured.
+ */
+fun Settings.getVoiceModeASRProvider(): ASRProviderSetting? {
+    val selected = selectedASRProviderId?.let { id -> asrProviders.find { it.id == id } }
+    return selected?.takeIf { it.supportsServerVadVoiceMode }
+        ?: asrProviders.firstOrNull { it.supportsServerVadVoiceMode }
+}
+
 fun Model.findProvider(providers: List<ProviderSetting>, checkOverwrite: Boolean = true): ProviderSetting? {
     val provider = findModelProviderFromList(providers) ?: return null
     val providerOverwrite = this.providerOverwrite
