@@ -1,9 +1,10 @@
 package me.rerere.ai.provider
 
 import android.content.Context
-import me.rerere.ai.provider.providers.ClaudeProvider
-import me.rerere.ai.provider.providers.GoogleProvider
-import me.rerere.ai.provider.providers.OpenAIProvider
+import me.rerere.ai.provider.providers.claude.ClaudeProvider
+import me.rerere.ai.provider.providers.google.GoogleProvider
+import me.rerere.ai.provider.providers.geminiweb.GeminiWebProvider
+import me.rerere.ai.provider.providers.openai.OpenAIProvider
 import okhttp3.OkHttpClient
 
 /**
@@ -17,6 +18,7 @@ class ProviderManager(client: OkHttpClient, context: Context) {
         // 注册默认Provider
         registerProvider("openai", OpenAIProvider(client, context))
         registerProvider("google", GoogleProvider(client, context))
+        registerProvider("gemini_web", GeminiWebProvider(client, context))
         registerProvider("claude", ClaudeProvider(client, context))
     }
 
@@ -51,6 +53,7 @@ class ProviderManager(client: OkHttpClient, context: Context) {
         return when (setting) {
             is ProviderSetting.OpenAI -> getProvider("openai")
             is ProviderSetting.Google -> getProvider("google")
+            is ProviderSetting.GeminiWeb -> getProvider("gemini_web")
             is ProviderSetting.Claude -> getProvider("claude")
         } as Provider<T>
     }
